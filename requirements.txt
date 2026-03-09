@@ -1,0 +1,8 @@
+customtkinter>=5.2.0
+Pillow>=10.0.0
+pillow-heif>=0.13.0
+opencv-python>=4.8.0
+
+# 注意: 如果使用系統 Python 遇到 Tk 版本問題,
+# 請使用 Homebrew 安裝 Python 3.11:
+# brew install python@3.11 python-tk@3.11
