@@ -3,7 +3,7 @@ import customtkinter as ctk
 from tkinter import filedialog, messagebox
 from typing import List, Callable
 from ..utils.constants import MODE_ORGANIZE, MODE_ADD_NEW
-from ..utils.file_utils import check_folders_validity
+from ..utils.file_utils import check_folders_validity, check_add_new_folders
 
 
 class MainWindow(ctk.CTk):
@@ -188,7 +188,7 @@ class MainWindow(ctk.CTk):
         # 說明
         desc_label = ctk.CTkLabel(
             self.folder_container,
-            text="比對新照片資料夾與硬碟資料夾,找到重複後直接刪除新照片資料夾裡的重複檔案",
+            text="比對新照片資料夾與硬碟資料夾,找到重複後將新照片資料夾裡的重複檔案移到待移除項目資料夾",
             font=ctk.CTkFont(size=12),
             text_color="gray"
         )
@@ -331,8 +331,8 @@ class MainWindow(ctk.CTk):
                 messagebox.showerror("錯誤", "請選擇新照片資料夾")
                 return
 
-            # 檢查硬碟資料夾
-            is_valid, error_msg = check_folders_validity(self.disk_folders)
+            # 檢查硬碟資料夾,以及與新照片資料夾的關係
+            is_valid, error_msg = check_add_new_folders(self.new_folder, self.disk_folders)
             if not is_valid:
                 messagebox.showerror("錯誤", error_msg)
                 return

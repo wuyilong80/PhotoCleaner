@@ -21,20 +21,24 @@ class FileScanner:
         self.corrupted_handler = corrupted_handler
 
     def scan_folders(self, folders: List[str],
-                    progress_callback: Optional[Callable] = None) -> Dict[str, Dict]:
+                    progress_callback: Optional[Callable] = None,
+                    exclude_folders: Optional[List[str]] = None) -> Dict[str, Dict]:
         """掃描資料夾,計算所有檔案的 SHA-256
 
         Args:
             folders: 要掃描的資料夾清單
             progress_callback: 進度回呼函數 callback(current, total, file_path, eta_seconds)
+            exclude_folders: 要跳過的子資料夾清單 (連同其內容)
 
         Returns:
             {file_path: {'sha256': str, 'size': int, 'mtime': float}, ...}
         """
+        excluded = {Path(f).resolve() for f in (exclude_folders or [])}
+
         # 第一階段:收集所有檔案
         all_files = []
         for folder in folders:
-            files = self._collect_files(folder)
+            files = self._collect_files(folder, excluded)
             all_files.extend(files)
 
         total_files = len(all_files)
@@ -93,11 +97,12 @@ class FileScanner:
 
         return file_info_dict
 
-    def _collect_files(self, root_folder: str) -> List[str]:
+    def _collect_files(self, root_folder: str, excluded=frozenset()) -> List[str]:
         """遞迴收集所有支援的檔案
 
         Args:
             root_folder: 根資料夾
+            excluded: 要跳過的資料夾 (已 resolve 的 Path 集合)
 
         Returns:
             檔案路徑清單
@@ -112,8 +117,9 @@ class FileScanner:
 
                 if entry.is_dir():
                     # 遞迴掃描子資料夾
-                    if not should_skip_directory(entry.path):
-                        files.extend(self._collect_files(entry.path))
+                    if (not should_skip_directory(entry.path)
+                            and Path(entry.path).resolve() not in excluded):
+                        files.extend(self._collect_files(entry.path, excluded))
 
                 elif entry.is_file():
                     # 檢查是否為支援的檔案格式

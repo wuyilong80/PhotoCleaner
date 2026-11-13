@@ -369,7 +369,10 @@ class PhotoDeduplicatorApp:
                 current, total, "掃描硬碟資料夾", file_path, eta_seconds
             )
 
-        disk_folder_files = scanner.scan_folders(disk_folders, progress_callback_disk)
+        # 新照片資料夾若放在硬碟資料夾裡面,掃描硬碟時跳過它,避免新照片跟自己比對
+        disk_folder_files = scanner.scan_folders(
+            disk_folders, progress_callback_disk, exclude_folders=[new_folder]
+        )
 
         # 關閉進度對話框
         progress.close_dialog()
@@ -393,9 +396,9 @@ class PhotoDeduplicatorApp:
     def _show_add_new_confirmation(self, duplicate_files):
         """顯示照片新增模式的確認對話框"""
         def on_confirm():
-            # 在背景執行刪除操作
+            # 在背景執行移動操作
             threading.Thread(
-                target=self._delete_duplicate_files,
+                target=self._move_files_to_removed,
                 args=(duplicate_files,),
                 daemon=True
             ).start()
@@ -405,29 +408,6 @@ class PhotoDeduplicatorApp:
             len(duplicate_files),
             on_confirm
         )
-
-    def _delete_duplicate_files(self, files_to_delete):
-        """刪除重複檔案 (背景執行)"""
-        # 建立進度對話框
-        progress = ProgressDialog(self.main_window, "刪除檔案")
-
-        def progress_callback(current, total, file_path):
-            progress.update_progress(current, total, "刪除檔案", file_path)
-
-        success_count, failed = self.file_op_manager.delete_files(
-            files_to_delete, progress_callback
-        )
-
-        progress.close_dialog()
-
-        # 顯示結果
-        if failed:
-            messagebox.showerror(
-                "部分失敗",
-                f"成功刪除 {success_count} 個檔案,但以下檔案失敗:\n" + "\n".join(failed[:5])
-            )
-        else:
-            messagebox.showinfo("完成", f"成功刪除 {success_count} 個重複檔案")
 
 
 def main():

@@ -124,7 +124,7 @@ class AddNewModeResultDialog(ctk.CTkToplevel):
     def _create_ui(self):
         """建立使用者介面"""
         # 訊息
-        message = f"找到 {self.duplicate_count} 個重複檔案\n將從新照片資料夾刪除"
+        message = f"找到 {self.duplicate_count} 個重複檔案\n將從新照片資料夾移到待移除項目資料夾"
         message_label = ctk.CTkLabel(
             self,
             text=message,
@@ -139,7 +139,7 @@ class AddNewModeResultDialog(ctk.CTkToplevel):
 
         confirm_button = ctk.CTkButton(
             button_frame,
-            text="確認刪除",
+            text="確認移動",
             command=self._on_confirm,
             width=120
         )
@@ -154,7 +154,7 @@ class AddNewModeResultDialog(ctk.CTkToplevel):
         cancel_button.pack(side="left", padx=10)
 
     def _on_confirm(self):
-        """確認刪除"""
+        """確認移動"""
         self.on_confirm_callback()
         self.destroy()
 

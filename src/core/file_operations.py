@@ -1,10 +1,10 @@
-"""檔案操作模組 - 處理移動、刪除、損壞檔案"""
+"""檔案操作模組 - 處理移動、損壞檔案"""
 import os
 import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple, Callable, Optional
-from ..utils.file_utils import get_output_folder_path, path_to_filename
+from ..utils.file_utils import get_output_folder_path, get_mirrored_dest_path, get_unique_path
 from ..utils.constants import REMOVED_FOLDER_TEMPLATE, CORRUPTED_FOLDER_TEMPLATE
 from .cache import CacheManager
 
@@ -29,9 +29,7 @@ class FileOperationManager:
         # 建立移動清單
         move_list = []
         for file_path in file_paths:
-            output_folder = get_output_folder_path(file_path, REMOVED_FOLDER_TEMPLATE)
-            dest_filename = path_to_filename(file_path)
-            dest_path = os.path.join(output_folder, dest_filename)
+            dest_path = get_mirrored_dest_path(file_path, REMOVED_FOLDER_TEMPLATE)
             move_list.append((file_path, dest_path))
 
         # 儲存到待執行清單
@@ -47,11 +45,7 @@ class FileOperationManager:
                 progress_callback(i, total, source_path)
 
             try:
-                # 確保目標資料夾存在
-                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-                # 移動檔案
-                shutil.move(source_path, dest_path)
+                self._move_without_overwrite(source_path, dest_path)
 
                 # 標記為已完成
                 self.cache_manager.mark_move_completed(source_path)
@@ -66,32 +60,18 @@ class FileOperationManager:
 
         return success_count, failed_files
 
-    def delete_files(self, file_paths: List[str],
-                    progress_callback: Optional[Callable] = None) -> Tuple[int, List[str]]:
-        """刪除檔案
-
-        Args:
-            file_paths: 要刪除的檔案路徑清單
-            progress_callback: 進度回呼 callback(current, total, file_path)
+    def _move_without_overwrite(self, source_path: str, dest_path: str) -> str:
+        """移動檔案,目的地已有同名檔案時自動改名,絕不覆蓋
 
         Returns:
-            (成功數量, 失敗的檔案清單)
+            實際的目的地路徑
         """
-        success_count = 0
-        failed_files = []
-        total = len(file_paths)
+        # 確保目標資料夾存在
+        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
-        for i, file_path in enumerate(file_paths, 1):
-            if progress_callback:
-                progress_callback(i, total, file_path)
-
-            try:
-                os.remove(file_path)
-                success_count += 1
-            except Exception as e:
-                failed_files.append(f"{file_path}: {str(e)}")
-
-        return success_count, failed_files
+        dest_path = get_unique_path(dest_path)
+        shutil.move(source_path, dest_path)
+        return dest_path
 
     def move_corrupted_file(self, file_path: str, error_msg: str = ""):
         """將損壞的檔案移動到損壞檔案資料夾
@@ -101,15 +81,9 @@ class FileOperationManager:
             error_msg: 錯誤訊息 (可選)
         """
         try:
-            output_folder = get_output_folder_path(file_path, CORRUPTED_FOLDER_TEMPLATE)
-            dest_filename = path_to_filename(file_path)
-            dest_path = os.path.join(output_folder, dest_filename)
-
-            # 確保目標資料夾存在
-            os.makedirs(output_folder, exist_ok=True)
-
-            # 移動檔案
-            shutil.move(file_path, dest_path)
+            dest_path = self._move_without_overwrite(
+                file_path, get_mirrored_dest_path(file_path, CORRUPTED_FOLDER_TEMPLATE)
+            )
 
             # 可選:記錄錯誤訊息到同名的 .txt 檔案
             if error_msg:
@@ -153,11 +127,7 @@ class FileOperationManager:
                     success_count += 1
                     continue
 
-                # 確保目標資料夾存在
-                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-                # 移動檔案
-                shutil.move(source_path, dest_path)
+                self._move_without_overwrite(source_path, dest_path)
 
                 # 標記為已完成
                 self.cache_manager.mark_move_completed(source_path)

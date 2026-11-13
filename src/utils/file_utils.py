@@ -92,20 +92,49 @@ def get_output_folder_path(source_path, folder_template):
     return os.path.expanduser(f'~/Desktop/{folder_name}')
 
 
-def path_to_filename(file_path):
-    """將路徑轉換為安全的檔案名稱
+def get_mirrored_dest_path(source_path, folder_template):
+    """決定檔案移到輸出資料夾後的路徑,在輸出資料夾裡保留原本的資料夾結構
 
-    例如: /Volumes/HDD/旅遊/IMG_0001.jpg -> Volumes_HDD_旅遊_IMG_0001.jpg
+    外接裝置保留裝置內的路徑,本機檔案保留完整路徑。例如:
+        /Volumes/HDD/旅遊/IMG_0001.jpg
+            -> /Volumes/HDD/待移除項目_20261113/旅遊/IMG_0001.jpg
+        /Users/me/Pictures/IMG_0001.jpg
+            -> ~/Desktop/待移除項目_20261113/Users/me/Pictures/IMG_0001.jpg
+
+    Args:
+        source_path: 來源檔案路徑
+        folder_template: 資料夾名稱模板 (例如: "待移除項目_{date}")
+
+    Returns:
+        目的地檔案的完整路徑
     """
-    path = Path(file_path)
+    source = Path(source_path).resolve()
+    output_folder = Path(get_output_folder_path(source, folder_template))
 
-    # 移除開頭的 /
-    path_str = str(path.resolve()).lstrip('/')
+    parts = source.parts
+    if str(source).startswith('/Volumes/') and len(parts) >= 3:
+        # 去掉 /Volumes/<裝置名稱>
+        relative = Path(*parts[3:])
+    else:
+        # 去掉開頭的 /
+        relative = Path(*parts[1:])
 
-    # 將 / 替換為 _
-    safe_name = path_str.replace('/', '_')
+    return str(output_folder / relative)
 
-    return safe_name
+
+def get_unique_path(path):
+    """若路徑已被佔用,在檔名後加上 _1、_2... 直到不重複
+
+    例如: IMG_0001.jpg 已存在 -> IMG_0001_1.jpg
+    """
+    if not os.path.lexists(path):
+        return path
+
+    base, ext = os.path.splitext(path)
+    counter = 1
+    while os.path.lexists(f"{base}_{counter}{ext}"):
+        counter += 1
+    return f"{base}_{counter}{ext}"
 
 
 def check_folders_validity(folders, exclude_folders=None):
@@ -146,5 +175,39 @@ def check_folders_validity(folders, exclude_folders=None):
             for exclude in exclude_folders:
                 if is_nested_path(folder, exclude):
                     return False, f"來源資料夾與系統資料夾重疊:\n{folder}\n{exclude}"
+
+    return True, ""
+
+
+def check_add_new_folders(new_folder, disk_folders):
+    """檢查照片新增模式的資料夾設定
+
+    新照片資料夾可以放在硬碟資料夾裡面 (掃描硬碟時會跳過它),
+    但不能與硬碟資料夾相同,硬碟資料夾也不能放在新照片資料夾裡面,
+    否則同一個檔案會同時被當成新照片與硬碟照片,跟自己比對成重複。
+
+    Args:
+        new_folder: 新照片資料夾
+        disk_folders: 硬碟資料夾清單
+
+    Returns:
+        (is_valid, error_message)
+    """
+    is_valid, error_msg = check_folders_validity(disk_folders)
+    if not is_valid:
+        return is_valid, error_msg
+
+    new_path = Path(new_folder).resolve()
+    for disk in disk_folders:
+        disk_path = Path(disk).resolve()
+
+        if disk_path == new_path:
+            return False, f"新照片資料夾不能與硬碟資料夾相同:\n{disk}"
+
+        try:
+            disk_path.relative_to(new_path)
+            return False, f"硬碟資料夾不能放在新照片資料夾裡面:\n{disk}\n{new_folder}"
+        except ValueError:
+            pass
 
     return True, ""
